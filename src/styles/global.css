@@ -1,0 +1,265 @@
+/* ---------------------------------------------------------
+   Family Recipes — editorial cookbook design system
+   --------------------------------------------------------- */
+
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Montserrat:wght@300..700&display=swap');
+
+:root {
+  /* Cream + black + tomato red — three-color editorial palette */
+  --paper: #FFFDF2;
+  --paper-deep: #F4EDD0;
+  --ink: #000000;
+  --ink-soft: #4D4842;
+  --rule: #E5DEC8;
+  --wine: #E63946;
+  --wine-dark: #C42C36;
+  --saffron: #E63946;
+  --tan: #F4EDD0;
+
+  /* Typography */
+  --font-display: 'Chakra Petch', sans-serif;
+  --font-body: 'Montserrat', system-ui, sans-serif;
+
+  /* Spacing */
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --space-xl: 4rem;
+  --space-2xl: 6rem;
+
+  /* Layout */
+  --content-max: 1240px;
+  --reading-max: 680px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+/* Subtle paper grain texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--wine); }
+
+img { max-width: 100%; display: block; }
+
+/* ---------------- Layout primitives ---------------- */
+
+.container {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}
+
+.reading {
+  max-width: var(--reading-max);
+  margin: 0 auto;
+}
+
+/* ---------------- Site header ---------------- */
+
+.site-header {
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.site-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.site-title__accent {
+  color: var(--wine);
+}
+
+.site-subtitle {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* ---------------- Buttons ---------------- */
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pill-button {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: all 0.2s ease;
+}
+
+.pill-button:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.pill-button[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+/* ---------------- Footer ---------------- */
+
+.site-footer {
+  margin-top: var(--space-2xl);
+  padding: var(--space-lg) 0;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.site-footer p {
+  margin: 0;
+  text-align: center;
+}
+
+/* ---------------- Utilities ---------------- */
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--wine);
+  font-weight: 600;
+}
+
+.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: var(--space-lg) 0;
+}
+
+.serif-num {
+  font-family: var(--font-display);
+  font-variant-numeric: oldstyle-nums;
+}
+
+/* ---------------- Links in markdown content ----------------
+   Plain markdown links (`[text](url)`) get the default style below.
+   For custom styling inside a recipe, use raw HTML in the .md file:
+     <a href="..." class="link-pill">View recipe</a>
+     <a href="..." class="link-subtle">Bon Appétit</a>
+     <a href="..." class="link-accent">my favorite version</a>
+*/
+
+/* Default style for unclassed markdown links inside recipe content */
+.prose a:not([class]),
+.recipe__notes a:not([class]) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s, color 0.15s;
+}
+.prose a:not([class]):hover,
+.recipe__notes a:not([class]):hover {
+  color: var(--wine);
+  text-decoration-color: var(--wine);
+}
+
+/* --- Utility link classes (use in markdown via <a class="..."> ) --- */
+
+/* Pill / mini-button — for CTAs like "View recipe" or "Buy on Amazon" */
+.link-pill {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: all 0.15s ease;
+  vertical-align: middle;
+}
+.link-pill:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Subtle — quiet inline link, only shows on hover. Good for source credits. */
+.link-subtle {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+  transition: color 0.15s, border-color 0.15s;
+}
+.link-subtle:hover {
+  color: var(--wine);
+  border-bottom-color: var(--wine);
+}
+
+/* Accent — bold red link for emphasis or a "this is the one" mention */
+.link-accent {
+  color: var(--wine);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid var(--wine);
+  transition: opacity 0.15s;
+}
+.link-accent:hover {
+  opacity: 0.7;
+}

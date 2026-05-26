@@ -1,0 +1,639 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection, render } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+
+export const getStaticPaths = (async () => {
+  const recipes = await getCollection('recipes');
+  return recipes.map((recipe) => ({
+    params: { slug: recipe.id },
+    props: { recipe },
+  }));
+}) satisfies GetStaticPaths;
+
+const { recipe } = Astro.props;
+const { Content } = await render(recipe);
+const { data } = recipe;
+
+// Build "Uses" and "Used in" relationships.
+// `uses` is read from this recipe's frontmatter.
+// `usedIn` is derived: every other recipe whose `uses` array includes this one.
+const allRecipes = await getCollection('recipes');
+const uses = data.uses
+  .map((id) => allRecipes.find((r) => r.id === id))
+  .filter((r): r is (typeof allRecipes)[number] => r !== undefined);
+const usedIn = allRecipes.filter(
+  (r) => r.id !== recipe.id && r.data.uses.includes(recipe.id)
+);
+
+// Group ingredients into sections. Items with only `section` start a new group.
+type Ingredient = (typeof data.ingredients)[number];
+const sections: { title: string; items: Ingredient[] }[] = [];
+let current: { title: string; items: Ingredient[] } = { title: '', items: [] };
+for (const ing of data.ingredients) {
+  if (ing.section && !ing.name) {
+    // Section header — start a new group
+    if (current.items.length > 0) sections.push(current);
+    current = { title: ing.section, items: [] };
+  } else {
+    current.items.push(ing);
+  }
+}
+if (current.items.length > 0) sections.push(current);
+
+// Format an amount: keep nice fractions where possible
+function formatAmount(amount: number | null): string {
+  if (amount === null) return '';
+  if (amount === 0) return '0';
+  // Round to 2 decimals, then strip trailing zeros
+  const rounded = Math.round(amount * 100) / 100;
+  // Show common fractions for readability
+  const fractions: [number, string][] = [
+    [0.125, '⅛'], [0.25, '¼'], [0.333, '⅓'], [0.375, '⅜'],
+    [0.5, '½'], [0.625, '⅝'], [0.667, '⅔'], [0.75, '¾'], [0.875, '⅞'],
+  ];
+  const whole = Math.floor(rounded);
+  const frac = rounded - whole;
+  const matched = fractions.find(([v]) => Math.abs(frac - v) < 0.02);
+  if (matched) {
+    return whole > 0 ? `${whole}${matched[1]}` : matched[1];
+  }
+  return rounded.toString();
+}
+---
+
+<BaseLayout title={`${data.title} — Family Cookbook`} description={data.description}>
+  <article class="recipe">
+    <header class="recipe__header container">
+      <p class="eyebrow">{data.category}</p>
+      <h1 class="recipe__title">{data.title}</h1>
+      <p class="recipe__description">{data.description}</p>
+
+      <dl class="recipe__stats">
+        <div>
+          <dt>Prep</dt>
+          <dd>{data.prepTime} min</dd>
+        </div>
+        <div>
+          <dt>Cook</dt>
+          <dd>{data.cookTime} min</dd>
+        </div>
+        <div>
+          <dt>Total</dt>
+          <dd>{data.prepTime + data.cookTime} min</dd>
+        </div>
+        <div>
+          <dt>Makes</dt>
+          <dd><span id="serving-display">{data.servings}</span> servings</dd>
+        </div>
+      </dl>
+    </header>
+
+    <hr class="rule container" />
+
+    <div class="container recipe__body">
+      <aside class="recipe__ingredients">
+        <div class="recipe__ingredients-head">
+          <h2>Ingredients</h2>
+          <div class="serving-scaler" role="group" aria-label="Adjust servings">
+            <button type="button" id="serving-decrease" aria-label="Decrease servings">−</button>
+            <span class="serving-scaler__value">
+              <span id="serving-number">{data.servings}</span>
+              <small>servings</small>
+            </span>
+            <button type="button" id="serving-increase" aria-label="Increase servings">+</button>
+          </div>
+        </div>
+
+        <ul class="ingredient-list" data-base-servings={data.servings}>
+          {sections.map((section) => (
+            <>
+              {section.title && <li class="ingredient-list__section">{section.title}</li>}
+              {section.items.map((ing) => (
+                <li class="ingredient">
+                  <span class="ingredient__amount">
+                    {ing.amount !== null && (
+                      <span
+                        class="ingredient__quantity"
+                        data-base-amount={ing.amount}
+                      >{formatAmount(ing.amount)}</span>
+                    )}
+                    {ing.unit && <span class="ingredient__unit"> {ing.unit}</span>}
+                  </span>
+                  <span class="ingredient__name">{ing.name}</span>
+                </li>
+              ))}
+            </>
+          ))}
+        </ul>
+      </aside>
+
+      <section class="recipe__method">
+        <h2>Method</h2>
+        <div class="prose">
+          <Content />
+        </div>
+
+        {data.notes && (
+          <div class="recipe__notes">
+            <h3>Notes</h3>
+            <p>{data.notes}</p>
+          </div>
+        )}
+
+        <p class="recipe__meta">
+          {data.source && <span>From {data.source}. </span>}
+          {data.addedBy && <span>Added by {data.addedBy}.</span>}
+        </p>
+      </section>
+    </div>
+
+    {(uses.length > 0 || usedIn.length > 0) && (
+      <section class="container related">
+        {uses.length > 0 && (
+          <div class="related__group">
+            <h2 class="related__heading">Uses</h2>
+            <div class="related__grid">
+              {uses.map((r) => (
+                <a href={`/recipes/${r.id}/`} class="related__card">
+                  <span class="related__cat">{r.data.category}</span>
+                  <span class="related__title">{r.data.title}</span>
+                  <span class="related__time">{r.data.prepTime + r.data.cookTime} min <span class="related__arrow">→</span></span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {usedIn.length > 0 && (
+          <div class="related__group">
+            <h2 class="related__heading">Used in</h2>
+            <div class="related__grid">
+              {usedIn.map((r) => (
+                <a href={`/recipes/${r.id}/`} class="related__card">
+                  <span class="related__cat">{r.data.category}</span>
+                  <span class="related__title">{r.data.title}</span>
+                  <span class="related__time">{r.data.prepTime + r.data.cookTime} min <span class="related__arrow">→</span></span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    )}
+
+    <div class="container">
+      <a href="/" class="back-link">← Back to all recipes</a>
+    </div>
+  </article>
+</BaseLayout>
+
+<script>
+  const list = document.querySelector<HTMLElement>('.ingredient-list');
+  if (list) {
+    const baseServings = parseFloat(list.dataset.baseServings ?? '1');
+    let current = baseServings;
+    const display = document.getElementById('serving-number');
+    const headerDisplay = document.getElementById('serving-display');
+    const dec = document.getElementById('serving-decrease');
+    const inc = document.getElementById('serving-increase');
+    const quantities = document.querySelectorAll<HTMLElement>('.ingredient__quantity');
+
+    const fractions: [number, string][] = [
+      [0.125, '⅛'], [0.25, '¼'], [0.333, '⅓'], [0.375, '⅜'],
+      [0.5, '½'], [0.625, '⅝'], [0.667, '⅔'], [0.75, '¾'], [0.875, '⅞'],
+    ];
+
+    function format(amount: number): string {
+      if (amount === 0) return '0';
+      const rounded = Math.round(amount * 100) / 100;
+      const whole = Math.floor(rounded);
+      const frac = rounded - whole;
+      const matched = fractions.find(([v]) => Math.abs(frac - v) < 0.04);
+      if (matched) {
+        return whole > 0 ? `${whole}${matched[1]}` : matched[1];
+      }
+      // For small fractional values without a nice fraction, show 1 decimal
+      if (rounded < 1) return rounded.toFixed(2).replace(/\.?0+$/, '');
+      return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(1);
+    }
+
+    function update() {
+      const scale = current / baseServings;
+      if (display) display.textContent = current.toString();
+      if (headerDisplay) headerDisplay.textContent = current.toString();
+      quantities.forEach((el) => {
+        const base = parseFloat(el.dataset.baseAmount ?? '0');
+        el.textContent = format(base * scale);
+      });
+    }
+
+    dec?.addEventListener('click', () => {
+      if (current > 1) {
+        current--;
+        update();
+      }
+    });
+    inc?.addEventListener('click', () => {
+      current++;
+      update();
+    });
+  }
+</script>
+
+<style>
+  .recipe__header {
+    padding-top: var(--space-xl);
+    padding-bottom: var(--space-lg);
+  }
+
+  .recipe__title {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    margin: var(--space-sm) 0 var(--space-md);
+    max-width: 18ch;
+    line-height: 0.95;
+  }
+
+  .recipe__description {
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+    max-width: 40rem;
+    font-family: var(--font-body);
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  .recipe__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-lg);
+    margin-top: var(--space-lg);
+    padding-top: var(--space-md);
+    border-top: 1px dotted var(--rule);
+  }
+
+  .recipe__stats div { margin: 0; }
+  .recipe__stats dt {
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+  }
+  .recipe__stats dd {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 600;
+  }
+
+  .recipe__body {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: var(--space-xl);
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-xl);
+  }
+
+  @media (max-width: 820px) {
+    .recipe__body {
+      grid-template-columns: 1fr;
+      gap: var(--space-lg);
+    }
+  }
+
+  /* ----- Ingredients (sidebar) ----- */
+
+  .recipe__ingredients {
+    align-self: start;
+    position: sticky;
+    top: var(--space-md);
+  }
+
+  @media (max-width: 820px) {
+    .recipe__ingredients { position: static; }
+  }
+
+  .recipe__ingredients h2,
+  .recipe__method h2 {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--wine);
+    font-family: var(--font-display);
+    font-weight: 600;
+    margin-bottom: var(--space-md);
+  }
+
+  .recipe__ingredients-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .recipe__ingredients-head h2 { margin: 0; }
+
+  .serving-scaler {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--paper-deep);
+    border-radius: 999px;
+    padding: 0.25rem 0.4rem;
+  }
+
+  .serving-scaler button {
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    border: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 1.1rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .serving-scaler button:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .serving-scaler__value {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    min-width: 3.5rem;
+    text-align: center;
+  }
+  .serving-scaler__value span:first-child {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+  .serving-scaler__value small {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-top: 0.15rem;
+    font-weight: 500;
+  }
+
+  .ingredient-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .ingredient {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    padding: 0.75rem 0;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 0.92rem;
+  }
+
+  .ingredient__amount {
+    flex-shrink: 0;
+    min-width: 4.5rem;
+    font-family: var(--font-display);
+    font-feature-settings: "frac";
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .ingredient__unit {
+    font-size: 0.85em;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  .ingredient__name {
+    color: var(--ink-soft);
+  }
+
+  .ingredient-list__section {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--wine);
+    padding: var(--space-md) 0 0.5rem;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .ingredient-list__section:first-child {
+    padding-top: 0.5rem;
+  }
+
+  /* ----- Method (main column) ----- */
+
+  .recipe__method {
+    max-width: var(--reading-max);
+  }
+
+  .prose {
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+
+  .prose :global(h3) {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin: var(--space-lg) 0 var(--space-sm);
+    color: var(--ink);
+  }
+
+  .prose :global(p) {
+    margin: 0 0 var(--space-sm);
+  }
+
+  .prose :global(ol) {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .prose :global(ol li) {
+    counter-increment: step;
+    position: relative;
+    padding: var(--space-sm) 0 var(--space-sm) 3.5rem;
+    border-bottom: 1px dotted var(--rule);
+    min-height: 3rem;
+  }
+
+  .prose :global(ol li::before) {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: var(--space-sm);
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--wine);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .prose :global(ol li:last-child) {
+    border-bottom: 0;
+  }
+
+  .prose :global(ul) {
+    padding-left: 1.2rem;
+  }
+
+  .prose :global(strong) {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .recipe__notes {
+    margin-top: var(--space-xl);
+    padding: var(--space-md);
+    background: var(--paper-deep);
+    border-left: 3px solid var(--saffron);
+  }
+
+  .recipe__notes h3 {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--ink-soft);
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  .recipe__notes p {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .recipe__meta {
+    margin-top: var(--space-xl);
+    padding-top: var(--space-md);
+    border-top: 1px dotted var(--rule);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  /* ----- Related (Uses / Used in) ----- */
+
+  .related {
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-xl);
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .related__heading {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--wine);
+    font-weight: 600;
+    margin-bottom: var(--space-md);
+  }
+
+  .related__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .related__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--paper-deep);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+  }
+
+  .related__card:hover {
+    border-color: var(--ink);
+    transform: translateY(-1px);
+    color: inherit;
+  }
+
+  .related__cat {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--wine);
+    font-weight: 600;
+  }
+
+  .related__title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+
+  .related__time {
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .related__arrow {
+    color: var(--wine);
+    transition: transform 0.2s ease;
+  }
+
+  .related__card:hover .related__arrow {
+    transform: translateX(3px);
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: var(--space-xl);
+    color: var(--ink-soft);
+    font-size: 0.75rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+  .back-link:hover { color: var(--wine); }
+</style>

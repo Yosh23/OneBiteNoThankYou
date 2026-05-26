@@ -1,0 +1,268 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const recipes = await getCollection('recipes');
+recipes.sort((a, b) => a.data.title.localeCompare(b.data.title));
+
+const categories = ['All', ...Array.from(new Set(recipes.map(r => r.data.category)))];
+---
+
+<BaseLayout title="One Bite No Thank You — Family Recipes" description="The recipes that made it past the kids. The keepers.">
+  <section class="hero">
+    <div class="container">
+      <p class="eyebrow">{recipes.length} recipes &middot; always growing</p>
+      <h1 class="hero__title">
+        From Recipies <span class="hero__title-accent">to Riches</span>
+      </h1>
+      <p class="hero__lede reading">
+        Every recipe here survived the one&#8209;bite&#8209;no&#8209;thank&#8209;you panel at our kitchen table.
+        Some are heirlooms, some are weeknight saves, all of them work.
+      </p>
+    </div>
+  </section>
+
+  <section class="container controls">
+    <div class="controls__search">
+      <input
+        type="search"
+        id="recipe-search"
+        placeholder="Search recipes, ingredients, tags…"
+        autocomplete="off"
+      />
+    </div>
+
+    <div class="controls__filters" role="group" aria-label="Filter by category">
+      {categories.map((cat) => (
+        <button
+          class="pill-button"
+          data-category={cat}
+          aria-pressed={cat === 'All' ? 'true' : 'false'}
+        >
+          {cat}
+        </button>
+      ))}
+    </div>
+  </section>
+
+  <section class="container">
+    <div class="recipe-grid" id="recipe-grid">
+      {recipes.map((recipe) => (
+        <a
+          href={`/recipes/${recipe.id}/`}
+          class="recipe-card"
+          data-category={recipe.data.category}
+          data-search={`${recipe.data.title} ${recipe.data.tags.join(' ')} ${recipe.data.ingredients.map(i => i.name).join(' ')}`.toLowerCase()}
+        >
+          <div class="recipe-card__meta">
+            <span class="recipe-card__category">{recipe.data.category}</span>
+            <span class="recipe-card__time">{recipe.data.prepTime + recipe.data.cookTime} min</span>
+          </div>
+          <h2 class="recipe-card__title">{recipe.data.title}</h2>
+          <p class="recipe-card__desc">{recipe.data.description}</p>
+          <div class="recipe-card__tags">
+            {recipe.data.tags.slice(0, 3).map((t) => <span>#{t}</span>)}
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <p class="empty-state" id="empty-state" hidden>
+      No recipes match. Try a different search or category.
+    </p>
+  </section>
+</BaseLayout>
+
+<script>
+  const searchInput = document.getElementById('recipe-search') as HTMLInputElement;
+  const filterButtons = document.querySelectorAll<HTMLButtonElement>('[data-category]');
+  const cards = document.querySelectorAll<HTMLAnchorElement>('.recipe-card');
+  const emptyState = document.getElementById('empty-state') as HTMLElement;
+
+  let activeCategory = 'All';
+  let activeSearch = '';
+
+  function applyFilters() {
+    let visibleCount = 0;
+    cards.forEach((card) => {
+      const cardCategory = card.dataset.category ?? '';
+      const cardSearch = card.dataset.search ?? '';
+      const matchesCategory = activeCategory === 'All' || cardCategory === activeCategory;
+      const matchesSearch = activeSearch === '' || cardSearch.includes(activeSearch);
+      const visible = matchesCategory && matchesSearch;
+      card.style.display = visible ? '' : 'none';
+      if (visible) visibleCount++;
+    });
+    emptyState.hidden = visibleCount > 0;
+  }
+
+  searchInput?.addEventListener('input', (e) => {
+    activeSearch = (e.target as HTMLInputElement).value.toLowerCase().trim();
+    applyFilters();
+  });
+
+  filterButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filterButtons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+      activeCategory = btn.dataset.category ?? 'All';
+      applyFilters();
+    });
+  });
+</script>
+
+<style>
+  .hero {
+    padding: var(--space-xl) 0 var(--space-lg);
+  }
+
+  .hero__title {
+    font-size: clamp(2.5rem, 7vw, 5.5rem);
+    margin: var(--space-sm) 0 var(--space-md);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 0.95;
+  }
+
+  .hero__title-accent {
+    color: var(--wine);
+  }
+
+  .hero__lede {
+    font-size: 1.1rem;
+    color: var(--ink-soft);
+    max-width: 38rem;
+    font-weight: 400;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-md);
+    border-top: 1px solid var(--rule);
+    margin-top: var(--space-lg);
+  }
+
+  .controls__search input {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0.75rem 0;
+    font-size: 1rem;
+    font-family: var(--font-body);
+    color: var(--ink);
+    transition: border-color 0.2s;
+  }
+
+  .controls__search input:focus {
+    outline: none;
+    border-bottom-color: var(--ink);
+  }
+
+  .controls__search input::placeholder {
+    color: var(--ink-soft);
+    opacity: 0.7;
+  }
+
+  .controls__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .recipe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-md);
+    padding: var(--space-lg) 0;
+  }
+
+  .recipe-card {
+    display: block;
+    padding: var(--space-md);
+    background: var(--paper-deep);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    transition: all 0.25s ease;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .recipe-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(230, 57, 70, 0.06));
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .recipe-card:hover {
+    border-color: var(--ink);
+    transform: translateY(-2px);
+    color: inherit;
+  }
+
+  .recipe-card:hover::before {
+    opacity: 1;
+  }
+
+  .recipe-card__meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: var(--space-md);
+    font-weight: 500;
+  }
+
+  .recipe-card__category {
+    color: var(--wine);
+    font-weight: 600;
+  }
+
+  .recipe-card__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    margin-bottom: var(--space-sm);
+    line-height: 1.05;
+  }
+
+  .recipe-card__desc {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    margin: 0 0 var(--space-md);
+    line-height: 1.5;
+  }
+
+  .recipe-card__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+    font-family: var(--font-body);
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: var(--space-xl) 0;
+    color: var(--ink-soft);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+</style>
