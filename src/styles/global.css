@@ -288,6 +288,10 @@
    }
    
    /* Subtle — quiet inline link, only shows on hover. Good for source credits. */
+   .site-subtitle--link {
+    transition: color 0.15s ease;
+  }
+  
    .link-subtle {
      color: inherit;
      text-decoration: none;

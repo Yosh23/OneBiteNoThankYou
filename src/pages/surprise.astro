@@ -1,0 +1,226 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+// Works with the existing recipe collection as-is — no extra fields needed.
+const recipes = await getCollection('recipes');
+
+const recipeData = recipes.map((r) => ({
+  id: r.id,
+  title: r.data.title,
+  description: r.data.description,
+  category: r.data.category,
+  time: r.data.prepTime + r.data.cookTime,
+}));
+---
+
+<BaseLayout title="Surprise Me — One Bite No Thank You" description="Stuck for ideas? Let the cookbook pick your next recipe to try.">
+  <section class="surprise container">
+    <p class="eyebrow">Need an idea?</p>
+    <h1 class="surprise__title">Your next recipe <span class="surprise__title-accent">to&nbsp;try.</span></h1>
+    <p class="surprise__lede">Don't overthink dinner. Hit the button and let the cookbook decide.</p>
+
+    <button class="surprise__btn" id="surprise-btn">🎲 Surprise me</button>
+
+    <div class="surprise__result" id="result" aria-live="polite"></div>
+  </section>
+
+  <script type="application/json" id="recipe-data" set:html={JSON.stringify(recipeData)}></script>
+
+  <script>
+    interface Recipe {
+      id: string;
+      title: string;
+      description: string;
+      category: string;
+      time: number;
+    }
+
+    const dataEl = document.getElementById('recipe-data');
+    const resultEl = document.getElementById('result');
+    const btn = document.getElementById('surprise-btn');
+
+    if (dataEl && resultEl && btn) {
+      const data: Recipe[] = JSON.parse(dataEl.textContent || '[]');
+      let rolling = false;
+      let lastId: string | null = null;
+
+      function renderResult(recipe: Recipe) {
+        resultEl!.innerHTML = `
+          <article class="surprise-card">
+            <span class="surprise-card__cat">${recipe.category}</span>
+            <h2 class="surprise-card__title">${recipe.title}</h2>
+            <p class="surprise-card__desc">${recipe.description}</p>
+            <p class="surprise-card__time">${recipe.time} min</p>
+            <a href="/recipes/${recipe.id}/" class="surprise-card__link">See the recipe →</a>
+          </article>
+        `;
+        lastId = recipe.id;
+        btn!.textContent = '🎲 Surprise me again';
+      }
+
+      function pick(): Recipe {
+        if (data.length === 1) return data[0];
+        // Avoid repeating the previous pick.
+        let choice: Recipe;
+        do {
+          choice = data[Math.floor(Math.random() * data.length)];
+        } while (choice.id === lastId);
+        return choice;
+      }
+
+      function spin() {
+        if (rolling || data.length === 0) return;
+        rolling = true;
+        let ticks = 0;
+        const maxTicks = 12;
+        const timer = setInterval(() => {
+          const flash = data[Math.floor(Math.random() * data.length)];
+          resultEl!.innerHTML = `<div class="surprise-rolling"><span>${flash.title}</span></div>`;
+          ticks++;
+          if (ticks >= maxTicks) {
+            clearInterval(timer);
+            renderResult(pick());
+            rolling = false;
+          }
+        }, 70);
+      }
+
+      btn.addEventListener('click', spin);
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .surprise {
+    padding-top: var(--space-xl);
+    padding-bottom: var(--space-2xl);
+    min-height: 60vh;
+  }
+
+  .surprise__title {
+    font-size: clamp(2.5rem, 7vw, 5rem);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 0.95;
+    margin: var(--space-sm) 0 var(--space-md);
+    color: var(--ink);
+  }
+
+  .surprise__title-accent {
+    color: var(--wine-dark);
+  }
+  [data-theme="dark"] .surprise__title-accent {
+    color: #ff6b75;
+  }
+
+  .surprise__lede {
+    font-size: 1.1rem;
+    color: var(--ink-soft);
+    max-width: 32rem;
+    margin: 0 0 var(--space-lg);
+  }
+
+  .surprise__btn {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.95rem 2.2rem;
+    background: var(--wine-dark);
+    color: #fff;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .surprise__btn:hover { opacity: 0.9; }
+  .surprise__btn:active { transform: scale(0.97); }
+
+  .surprise__result {
+    padding-top: var(--space-xl);
+    min-height: 14rem;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  /* Rolling (shuffle) state */
+  .surprise-rolling {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--ink-soft);
+    opacity: 0.5;
+    letter-spacing: -0.01em;
+  }
+
+  /* Result card */
+  .surprise-card {
+    width: 100%;
+    animation: surprise-pop 0.3s ease;
+  }
+
+  @keyframes surprise-pop {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .surprise-card__cat {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--wine-dark);
+    margin-bottom: var(--space-sm);
+  }
+  [data-theme="dark"] .surprise-card__cat {
+    color: #ff6b75;
+  }
+
+  .surprise-card__title {
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 0.95;
+    margin: 0 0 var(--space-md);
+    color: var(--ink);
+  }
+
+  .surprise-card__desc {
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+    max-width: 38rem;
+    margin: 0 0 var(--space-sm);
+    line-height: 1.5;
+  }
+
+  .surprise-card__time {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-soft);
+    margin: 0 0 var(--space-lg);
+  }
+
+  .surprise-card__link {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.7rem 1.4rem;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 999px;
+    transition: opacity 0.15s ease;
+  }
+  .surprise-card__link:hover { opacity: 0.85; color: var(--paper); }
+</style>
